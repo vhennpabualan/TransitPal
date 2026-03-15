@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TransitPal - Local Commuter Guide</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚌 TransitPal - Local Commuter Guide</h1>
+            <p>Find routes, save favorites, and navigate your city</p>
+        </div>
+
+        <div class="main-content">
+            <div class="sidebar">
+                <!-- Search Section -->
+                <div class="search-section">
+                    <h3>Search Location</h3>
+                    <input 
+                        type="text" 
+                        id="searchInput" 
+                        placeholder="Search for a place..." 
+                        class="search-input"
+                    >
+                    <div id="searchResults" class="search-results"></div>
+                </div>
+
+                <!-- Route Planner -->
+                <div class="route-section">
+                    <h3>Route Planner</h3>
+                    <div class="route-inputs">
+                        <input 
+                            type="text" 
+                            id="startPoint" 
+                            placeholder="Starting point..." 
+                            class="route-input"
+                        >
+                        <button id="swapBtn" class="swap-btn" title="Swap start & end">⇅</button>
+                        <input 
+                            type="text" 
+                            id="endPoint" 
+                            placeholder="Destination..." 
+                            class="route-input"
+                        >
+                    </div>
+
+                    <div class="route-mode">
+                        <label>Travel Mode:</label>
+                        <select id="routeMode">
+                            <option value="driving">🚗 Driving</option>
+                            <option value="walking">🚶 Walking</option>
+                            <option value="cycling">🚴 Cycling</option>
+                        </select>
+                    </div>
+
+                    <button id="findRouteBtn" class="btn btn-primary">Find Route</button>
+                </div>
+
+                <!-- Route Info -->
+                <div id="routeInfo" class="route-info" style="display:none;">
+                    <h3>Route Details</h3>
+                    <p><strong>Distance:</strong> <span id="distance">-</span></p>
+                    <p><strong>Duration:</strong> <span id="duration">-</span></p>
+                    <button id="saveFavoriteBtn" class="btn btn-secondary">💾 Save Route</button>
+                </div>
+
+                <!-- Favorites Section -->
+                <div class="favorites-section">
+                    <h3>Saved Routes</h3>
+                    <div id="favoritesList" class="favorites-list"></div>
+                </div>
+            </div>
+
+            <!-- Map -->
+            <div id="map" class="map"></div>
+        </div>
+    </div>
+
+    <!-- Leaflet -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- App Script -->
+    <script src="app.js"></script>
+</body>
+</html>
