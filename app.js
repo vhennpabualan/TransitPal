@@ -225,7 +225,7 @@ class TransitPal {
 
         try {
             // API key as query parameter (correct format for OpenRouteService)
-            const url = `https://api.openrouteservice.org/v2/directions/${orsMode}?api_key=${this.apiKey}`;
+            const url = `https://api.openrouteservice.org/v2/directions/${orsMode}/geojson?api_key=${this.apiKey}`;
             
             console.log('Requesting route from:', url);
 
@@ -265,20 +265,19 @@ class TransitPal {
             const data = await response.json();
             console.log('Route data received:', data);
 
-            if (!data.routes || data.routes.length === 0) {
+            if (!data.features || data.features.length === 0) {
                 throw new Error('No route found between these locations. Try different addresses.');
             }
 
-            // Convert OpenRouteService format to our standard format
-            const route = data.routes[0];
+            const route = data.features[0];
             console.log('Route parsed successfully');
             return {
                 geometry: {
                     type: 'LineString',
                     coordinates: route.geometry.coordinates
                 },
-                distance: route.summary.distance,
-                duration: route.summary.duration
+                distance: route.properties.summary.distance,
+                duration: route.properties.summary.duration
             };
         } catch (error) {
             console.error('Routing error:', error);
