@@ -11,8 +11,7 @@ class TransitPal {
         this.startCoords = null;
         this.endCoords = null;
         this.currentRoute = null;
-        // OpenRouteService API Key
-        this.apiKey = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImEzYTQxNzMxNTVlMzQzMmM5ZDZhNGVlMjc2MjEzMTQxIiwiaCI6Im11cm11cjY0In0=';
+        // API key is now secured via Netlify Functions proxy
         
         this.init();
         this.loadFavorites();
@@ -215,7 +214,7 @@ class TransitPal {
     }
 
     async getRouteFromOSRM(start, end, mode) {
-        // Using OpenRouteService with authenticated API key
+        // Using Netlify Functions proxy to keep API key secure
         const modeMap = {
             'driving': 'driving-car',
             'cycling': 'cycling-regular',
@@ -224,22 +223,20 @@ class TransitPal {
         const orsMode = modeMap[mode] || 'driving-car';
 
         try {
-            // API key as query parameter (correct format for OpenRouteService)
-            const url = `https://api.openrouteservice.org/v2/directions/${orsMode}/geojson?api_key=${this.apiKey}`;
-            
-            console.log('Requesting route from:', url);
+            console.log('Requesting route via Netlify proxy');
 
-            const response = await fetch(url, {
+            // Call Netlify function instead of external API directly
+            const response = await fetch('/.netlify/functions/route', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'User-Agent': 'TransitPal/1.0'
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     coordinates: [
                         [start.lon, start.lat],
                         [end.lon, end.lat]
-                    ]
+                    ],
+                    mode: orsMode
                 })
             });
 
