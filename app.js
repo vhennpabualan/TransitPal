@@ -11,7 +11,6 @@ class TransitPal {
         this.startCoords = null;
         this.endCoords = null;
         this.currentRoute = null;
-        // API key is now secured via Netlify Functions proxy
         
         this.init();
         this.loadFavorites();
