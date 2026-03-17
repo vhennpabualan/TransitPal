@@ -1,58 +1,76 @@
+// netlify/functions/route.js
+// Proxy function for OSRM Routing API
+// Works around CORS issues
+
 exports.handler = async (event) => {
-  // Only allow POST requests
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
-  }
-
-  try {
-    const { coordinates, mode } = JSON.parse(event.body);
-
-    // API key is stored in environment variable (never exposed to client)
-    const apiKey = process.env.ORS_API_KEY;
-    if (!apiKey) {
-      return {
-        statusCode: 500,
-        body: JSON.stringify({ error: 'API key not configured' })
-      };
+    // Only allow POST requests
+    if (event.httpMethod !== 'POST') {
+        return {
+            statusCode: 405,
+            body: JSON.stringify({ error: 'Method not allowed' })
+        };
     }
 
-    const response = await fetch(
-      `https://api.openrouteservice.org/v2/directions/${mode}/geojson?api_key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'TransitPal/1.0'
-        },
-        body: JSON.stringify({ coordinates })
-      }
-    );
+    try {
+        const { startLon, startLat, endLon, endLat, mode } = JSON.parse(event.body);
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      let errorMsg = errorData || `HTTP ${response.status}`;
-      try {
-        const json = JSON.parse(errorData);
-        errorMsg = json.error?.message || json.error || errorData;
-      } catch (e) {}
-      
-      return {
-        statusCode: response.status,
-        body: JSON.stringify({ error: errorMsg })
-      };
+        // Validate inputs
+        if (!startLon || !startLat || !endLon || !endLat || !mode) {
+            return {
+                statusCode: 400,
+                body: JSON.stringify({ error: 'Missing required parameters' })
+            };
+        }
+
+        // Validate mode
+        const validModes = ['car', 'foot', 'bike'];
+        if (!validModes.includes(mode)) {
+            return {
+                statusCode: 400,
+                body: JSON.stringify({ error: 'Invalid travel mode' })
+            };
+        }
+
+        // Call OSRM API server-side (no CORS issues!)
+        const response = await fetch(
+            `https://router.project-osrm.org/route/v1/${mode}/${startLon},${startLat};${endLon},${endLat}?overview=full&geometries=geojson&steps=true`,
+            {
+                headers: {
+                    'User-Agent': 'TransitPal/1.0 (Netlify Function)'
+                }
+            }
+        );
+
+        if (!response.ok) {
+            console.error(`OSRM API error: ${response.status}`);
+            return {
+                statusCode: response.status,
+                body: JSON.stringify({ error: 'Routing service error' })
+            };
+        }
+
+        const data = await response.json();
+
+        if (!data.routes || data.routes.length === 0) {
+            return {
+                statusCode: 404,
+                body: JSON.stringify({ error: 'No route found' })
+            };
+        }
+
+        return {
+            statusCode: 200,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        };
+
+    } catch (error) {
+        console.error('Route function error:', error);
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ error: error.message })
+        };
     }
-
-    const data = await response.json();
-
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    };
-  } catch (error) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: error.message })
-    };
-  }
 };

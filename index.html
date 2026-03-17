@@ -3,87 +3,187 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TransitPal - Local Commuter Guide</title>
+    <title>TransitPal - Smart Route Navigator</title>
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>🚌 TransitPal - Local Commuter Guide</h1>
-            <p>Find routes, save favorites, and navigate your city</p>
+    <div class="app-container">
+        <!-- Animated Background -->
+        <div class="background-container">
+            <div class="gradient-mesh gradient-1"></div>
+            <div class="gradient-mesh gradient-2"></div>
+            <div class="gradient-mesh gradient-3"></div>
         </div>
 
-        <div class="main-content">
-            <div class="sidebar">
-                <!-- Search Section -->
-                <div class="search-section">
-                    <h3>Search Location</h3>
-                    <input 
-                        type="text" 
-                        id="searchInput" 
-                        placeholder="Search for a place..." 
-                        class="search-input"
-                    >
-                    <div id="searchResults" class="search-results"></div>
+        <!-- Main Layout -->
+        <div class="layout-wrapper">
+            <!-- Header -->
+            <header class="app-header">
+                <div class="header-content">
+                    <!-- Logo & Subtitle on LEFT -->
+                    <div class="header-left">
+                        <div class="logo">
+                            <i class="fas fa-location-dot"></i>
+                            TransitPal
+                        </div>
+                        <div class="header-subtitle">Smart Route Navigator</div>
+                    </div>
+                    
+                    <!-- Theme Button on RIGHT -->
+                    <button id="themeToggle" class="theme-toggle" title="Toggle Theme">
+                        <i class="fas fa-moon"></i>
+                    </button>
                 </div>
+            </header>
 
-                <!-- Route Planner -->
-                <div class="route-section">
-                    <h3>Route Planner</h3>
-                    <div class="route-inputs">
-                        <input 
-                            type="text" 
-                            id="startPoint" 
-                            placeholder="Starting point..." 
-                            class="route-input"
-                        >
-                        <button id="swapBtn" class="swap-btn" title="Swap start & end">⇅</button>
-                        <input 
-                            type="text" 
-                            id="endPoint" 
-                            placeholder="Destination..." 
-                            class="route-input"
-                        >
+            <!-- Main Content -->
+            <div class="main-grid">
+                <!-- Sidebar -->
+                <aside class="sidebar">
+                    <!-- Location Search -->
+                    <div class="card search-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-magnifying-glass"></i> Search Location</h3>
+                        </div>
+                        <div class="card-body">
+                            <input 
+                                type="text" 
+                                id="searchInput" 
+                                placeholder="Search for a place..." 
+                                class="search-input"
+                            >
+                            <div id="searchResults" class="search-results"></div>
+                        </div>
                     </div>
 
-                    <div class="route-mode">
-                        <label>Travel Mode:</label>
-                        <select id="routeMode">
-                            <option value="driving">🚗 Driving</option>
-                            <option value="walking">🚶 Walking</option>
-                            <option value="cycling">🚴 Cycling</option>
-                        </select>
+                    <!-- Route Planner -->
+                    <div class="card route-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-route"></i> Plan Route</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="route-inputs">
+                                <div class="input-group">
+                                    <label class="input-label">Starting Point</label>
+                                    <input 
+                                        type="text" 
+                                        id="startPoint" 
+                                        placeholder="Where from..." 
+                                        class="route-input"
+                                    >
+                                </div>
+
+                                <button id="swapBtn" class="swap-button" title="Swap start & end">
+                                    <i class="fa-solid fa-up-down"></i>
+                                </button>
+
+                                <div class="input-group">
+                                    <label class="input-label">Destination</label>
+                                    <input 
+                                        type="text" 
+                                        id="endPoint" 
+                                        placeholder="Where to..." 
+                                        class="route-input"
+                                    >
+                                </div>
+                            </div>
+
+                            <!-- Travel Mode -->
+                            <div class="travel-modes">
+                                <label class="mode-label">Travel Mode:</label>
+                                <div class="mode-buttons">
+                                    <button class="mode-btn active" data-mode="car" title="Driving">
+                                        <i class="fas fa-car"></i> Drive
+                                    </button>
+                                    <button class="mode-btn" data-mode="foot" title="Walking">
+                                        <i class="fas fa-person-walking"></i> Walk
+                                    </button>
+                                    <button class="mode-btn" data-mode="bike" title="Cycling">
+                                        <i class="fa-solid fa-bicycle"></i> Cycle
+                                    </button>
+                                </div>
+                                <input type="hidden" id="routeMode" value="car">
+                            </div>
+
+                            <button id="findRouteBtn" class="btn btn-primary">
+                                <i class="fas fa-compass"></i> Find Route
+                            </button>
+                        </div>
                     </div>
 
-                    <button id="findRouteBtn" class="btn btn-primary">Find Route</button>
-                </div>
+                    <!-- Route Information -->
+                    <div id="routeInfo" class="card route-info-card" style="display:none;">
+                        <div class="card-header">
+                            <h3><i class="fas fa-info-circle"></i> Route Details</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="route-stat">
+                                <div class="stat-icon">📏</div>
+                                <div class="stat-content">
+                                    <span class="stat-label">Distance</span>
+                                    <span id="distance" class="stat-value">-</span>
+                                </div>
+                            </div>
+                            <div class="route-stat">
+                                <div class="stat-icon">⏱️</div>
+                                <div class="stat-content">
+                                    <span class="stat-label">Estimated Time</span>
+                                    <span id="duration" class="stat-value">-</span>
+                                </div>
+                            </div>
+                            <button id="saveFavoriteBtn" class="btn btn-secondary">
+                                <i class="fas fa-star"></i> Save Route
+                            </button>
+                        </div>
+                    </div>
 
-                <!-- Route Info -->
-                <div id="routeInfo" class="route-info" style="display:none;">
-                    <h3>Route Details</h3>
-                    <p><strong>Distance:</strong> <span id="distance">-</span></p>
-                    <p><strong>Duration:</strong> <span id="duration">-</span></p>
-                    <button id="saveFavoriteBtn" class="btn btn-secondary">💾 Save Route</button>
-                </div>
+                    <!-- Saved Routes -->
+                    <div class="card favorites-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-bookmark"></i> Saved Routes</h3>
+                            <span class="badge" id="favoritesCount">0</span>
+                        </div>
+                        <div class="card-body">
+                            <div id="favoritesList" class="favorites-list"></div>
+                            <div id="noFavorites" class="no-data">
+                                <i class="fas fa-bookmark"></i>
+                                <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;No saved routes yet</p>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
 
-                <!-- Favorites Section -->
-                <div class="favorites-section">
-                    <h3>Saved Routes</h3>
-                    <div id="favoritesList" class="favorites-list"></div>
+                <!-- Map Container -->
+                <div class="map-container">
+                    <div id="map" class="map"></div>
+                    <div class="map-controls">
+                        <button id="zoomInBtn" class="map-control-btn" title="Zoom in">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button id="zoomOutBtn" class="map-control-btn" title="Zoom out">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                        <button id="locateBtn" class="map-control-btn" title="Current location">
+                            <i class="fas fa-location-crosshairs"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
-
-            <!-- Map -->
-            <div id="map" class="map"></div>
         </div>
     </div>
 
-    <!-- Leaflet -->
+    <!-- Leaflet Library -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <!-- App Script -->

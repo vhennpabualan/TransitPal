@@ -1,2 +1,19 @@
 [build]
+  command = "echo 'Static site - no build needed'"
+  publish = "."
   functions = "netlify/functions"
+
+[dev]
+  command = "echo 'Using default dev server'"
+  port = 8888
+  framework = "#custom"
+
+[[redirects]]
+  from = "/api/geocode"
+  to = "/.netlify/functions/geocode"
+  status = 200
+
+[[redirects]]
+  from = "/api/route"
+  to = "/.netlify/functions/route"
+  status = 200
