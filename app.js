@@ -111,10 +111,6 @@ class TransitPal {
         this.startName = null;
         this.endName = null;
         this.currentRoute = null;
-        this.currentMode = 'car';
-        this.favorites = [];
-        this.lastSearchTime = 0;
-        this.lastRouteTime = 0;
         
         this.init();
     }
