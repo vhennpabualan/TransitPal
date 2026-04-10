@@ -1,0 +1,17 @@
+{
+  "name": "transitpal",
+  "version": "1.0.0",
+  "description": "Public Transit Route Finder Application",
+  "scripts": {
+    "dev": "netlify dev",
+    "start": "netlify dev",
+    "build": "netlify build",
+    "functions:serve": "netlify functions:serve"
+  },
+  "dependencies": {
+    "autoskills": "^0.2.7"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  }
+}

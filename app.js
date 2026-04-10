@@ -1,49 +1,44 @@
-// =====================
-// TRANSITPAL - SMART ROUTE NAVIGATOR
-// Modern Version with Notifications, Rate Limiting & Theme Toggle
-// Free APIs: Leaflet, OpenStreetMap, OSRM, Nominatim
-// =====================
-
-// =====================
-// NOTIFICATION SYSTEM
-// =====================
-
 class Notifications {
     static showModal(title, message, type = 'error') {
         const overlay = document.createElement('div');
         overlay.className = 'modal-overlay';
-        
-        const iconMap = {
-            error: '❌',
-            success: '✅',
-            warning: '⚠️',
-            info: 'ℹ️'
-        };
+        overlay.style.cssText = `
+            position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 9999; backdrop-filter: blur(4px);
+        `;
+
+        const iconMap = { error: '❌', success: '✅', warning: '⚠️', info: 'ℹ️' };
+        const colorMap = { error: '#ff3b30', success: '#34c759', warning: '#ff9500', info: '#007aff' };
 
         overlay.innerHTML = `
-            <div class="modal">
-                <div class="modal-header ${type}">
-                    <span>${iconMap[type]}</span>
-                    <span>${title}</span>
-                </div>
-                <div class="modal-body">${message}</div>
-                <div class="modal-footer">
-                    <button class="modal-btn modal-btn-primary" onclick="this.closest('.modal-overlay').remove()">
-                        OK
-                    </button>
-                </div>
+            <div style="
+                background: var(--bg-floating, #1c1c1e);
+                border-radius: 20px;
+                padding: 28px 24px 20px;
+                max-width: 340px;
+                width: 90%;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+                border: 1px solid rgba(255,255,255,0.08);
+                text-align: center;
+                font-family: inherit;
+            ">
+                <div style="font-size: 2rem; margin-bottom: 12px;">${iconMap[type]}</div>
+                <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 10px; color: var(--text-primary, #fff);">${title}</div>
+                <div style="font-size: 0.9rem; color: var(--text-secondary, rgba(255,255,255,0.6)); margin-bottom: 20px; line-height: 1.5;">${message}</div>
+                <button onclick="this.closest('.modal-overlay').remove()" style="
+                    width: 100%; height: 44px; border-radius: 12px; border: none;
+                    background: ${colorMap[type]}; color: white;
+                    font-family: inherit; font-size: 1rem; font-weight: 600; cursor: pointer;
+                ">OK</button>
             </div>
         `;
-        
+
         document.body.appendChild(overlay);
-        
-        // Auto-close after 5 seconds (unless error)
+        overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
         if (type !== 'error') {
-            setTimeout(() => {
-                if (overlay.parentElement) {
-                    overlay.remove();
-                }
-            }, 5000);
+            setTimeout(() => overlay.parentElement && overlay.remove(), 5000);
         }
     }
 
@@ -52,54 +47,46 @@ class Notifications {
         if (!container) {
             container = document.createElement('div');
             container.className = 'toast-container';
+            container.style.cssText = `
+                position: fixed; top: 160px; left: 50%; transform: translateX(-50%);
+                z-index: 9999; display: flex; flex-direction: column; gap: 8px;
+                pointer-events: none; width: 90%; max-width: 400px;
+            `;
             document.body.appendChild(container);
         }
 
-        const iconMap = {
-            error: '❌',
-            success: '✅',
-            warning: '⚠️',
-            info: 'ℹ️'
-        };
+        const colorMap = { error: '#ff3b30', success: '#34c759', warning: '#ff9500', info: '#007aff' };
 
         const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        toast.innerHTML = `
-            <span class="toast-icon">${iconMap[type]}</span>
-            <span class="toast-message">${message}</span>
-            <button class="toast-close" onclick="this.closest('.toast').remove()">×</button>
+        toast.style.cssText = `
+            background: var(--bg-floating, #1c1c1e);
+            border-left: 3px solid ${colorMap[type]};
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-primary, #fff);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            pointer-events: all;
+            cursor: pointer;
+            animation: toastIn 0.3s ease;
+            font-family: inherit;
         `;
+        toast.textContent = message;
+        toast.addEventListener('click', () => toast.remove());
 
         container.appendChild(toast);
-
-        // Auto-remove after duration
-        setTimeout(() => {
-            if (toast.parentElement) {
-                toast.remove();
-            }
-        }, duration);
+        setTimeout(() => toast.parentElement && toast.remove(), duration);
     }
 }
 
-// =====================
-// UTILITY FUNCTIONS
-// =====================
-
 function debounce(func, wait) {
     let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
+    return function (...args) {
         clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
+        timeout = setTimeout(() => func(...args), wait);
     };
 }
-
-// =====================
-// TRANSITPAL CLASS
-// =====================
 
 class TransitPal {
     constructor() {
@@ -111,7 +98,11 @@ class TransitPal {
         this.startName = null;
         this.endName = null;
         this.currentRoute = null;
-        
+        this.currentMode = 'car';
+        this.lastSearchTime = 0;
+        this.lastRouteTime = 0;
+        this.favorites = [];
+
         this.init();
     }
 
@@ -120,12 +111,14 @@ class TransitPal {
         this.initMap();
         this.loadFavorites();
         this.attachEventListeners();
-        this.setDefaultLocation();
     }
 
-    // Initialize Leaflet Map
+    // =====================
+    // MAP
+    // =====================
+
     initMap() {
-        this.map = L.map('map').setView([8.4866, 124.6648], 13);
+        this.map = L.map('map', { zoomControl: false }).setView([8.4866, 124.6648], 13);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors',
@@ -135,211 +128,157 @@ class TransitPal {
         this.map.attributionControl.setPrefix('');
     }
 
-    setDefaultLocation() {
-        const defaultLat = 8.4866;
-        const defaultLon = 124.6648;
-        this.map.setView([defaultLat, defaultLon], 13);
-    }
+    // =====================
+    // EVENTS
+    // =====================
 
     attachEventListeners() {
-        // Theme toggle
-        const themeToggle = document.getElementById('themeToggle');
-        if (themeToggle) {
-            themeToggle.addEventListener('click', () => this.toggleTheme());
-        }
+        // Theme
+        document.getElementById('themeToggle')?.addEventListener('click', () => this.toggleTheme());
 
-        // Search with debouncing to prevent rate limiting
-        const debouncedSearch = debounce((value) => {
-            this.handleSearch(value);
-        }, 500); // Wait 500ms after user stops typing
+        // Search (debounced)
+        const debouncedSearch = debounce(v => this.handleSearch(v), 500);
+        document.getElementById('searchInput')?.addEventListener('input', e => debouncedSearch(e.target.value));
 
-        document.getElementById('searchInput').addEventListener('input', 
-            (e) => debouncedSearch(e.target.value)
-        );
+        // Route
+        document.getElementById('findRouteBtn')?.addEventListener('click', () => this.findRoute());
 
-        // Route finding
-        document.getElementById('findRouteBtn').addEventListener('click',
-            () => this.findRoute()
-        );
+        // Bottom sheet click to show (when hidden)
+        document.getElementById('routeSheet')?.addEventListener('click', (e) => {
+            const sheet = document.getElementById('routeSheet');
+            if (sheet.classList.contains('hidden')) {
+                this.showBottomSheet();
+            }
+        });
 
-        // Swap points
-        document.getElementById('swapBtn').addEventListener('click',
-            () => this.swapPoints()
-        );
+        // Sheet trigger button click
+        document.getElementById('sheetTriggerBtn')?.addEventListener('click', () => {
+            this.showBottomSheet();
+        });
+
+        // Swap
+        document.getElementById('swapBtn')?.addEventListener('click', () => this.swapPoints());
+
+        // Route FAB scroll
+        document.getElementById('routeFab')?.addEventListener('click', () => {
+            document.getElementById('routeSheet')?.scrollIntoView({ behavior: 'smooth' });
+            setTimeout(() => document.getElementById('startPoint')?.focus(), 300);
+        });
 
         // Save favorite
-        document.getElementById('saveFavoriteBtn').addEventListener('click',
-            () => this.saveFavorite()
-        );
+        document.getElementById('saveFavoriteBtn')?.addEventListener('click', () => this.saveFavorite());
 
-        // Travel mode buttons
+        // Mode buttons
         document.querySelectorAll('.mode-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+            btn.addEventListener('click', e => {
                 document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
                 e.currentTarget.classList.add('active');
                 this.currentMode = e.currentTarget.dataset.mode;
-                document.getElementById('routeMode').value = this.currentMode;
-                Notifications.showToast('🚗 ' + e.currentTarget.textContent.trim() + ' mode selected', 'info', 2000);
+                Notifications.showToast(`Mode: ${e.currentTarget.textContent.trim()}`, 'info', 1500);
             });
         });
 
         // Map controls
-        document.getElementById('zoomInBtn').addEventListener('click',
-            () => this.map.zoomIn()
-        );
-        document.getElementById('zoomOutBtn').addEventListener('click',
-            () => this.map.zoomOut()
-        );
-        document.getElementById('locateBtn').addEventListener('click',
-            () => this.getCurrentLocation()
-        );
+        document.getElementById('zoomInBtn')?.addEventListener('click', () => this.map.zoomIn());
+        document.getElementById('zoomOutBtn')?.addEventListener('click', () => this.map.zoomOut());
+        document.getElementById('locateBtn')?.addEventListener('click', () => this.getCurrentLocation());
 
         // Enter key on inputs
-        document.getElementById('startPoint').addEventListener('keypress',
-            (e) => { if (e.key === 'Enter') this.findRoute(); }
-        );
-        document.getElementById('endPoint').addEventListener('keypress',
-            (e) => { if (e.key === 'Enter') this.findRoute(); }
-        );
+        document.getElementById('startPoint')?.addEventListener('keypress', e => { if (e.key === 'Enter') this.findRoute(); });
+        document.getElementById('endPoint')?.addEventListener('keypress', e => { if (e.key === 'Enter') this.findRoute(); });
     }
 
     // =====================
-    // SEARCH & GEOCODING
+    // SEARCH (direct Nominatim)
     // =====================
-    async handleSearch(query) {
-        if (query.length < 3) {
-            document.getElementById('searchResults').innerHTML = '';
-            return;
-        }
 
-        // Rate limiting: wait 1 second between searches
+    async handleSearch(query) {
+        const resultsDiv = document.getElementById('searchResults');
+        if (query.length < 3) { resultsDiv.innerHTML = ''; return; }
+
         const now = Date.now();
-        if (now - this.lastSearchTime < 1000) {
-            return;
-        }
+        if (now - this.lastSearchTime < 1000) return;
         this.lastSearchTime = now;
 
         try {
-            // Use Netlify function to avoid CORS issues
-            const functionUrl = window.location.hostname === 'localhost' 
-                ? `http://localhost:8888/.netlify/functions/geocode?query=${encodeURIComponent(query)}`
-                : `/.netlify/functions/geocode?query=${encodeURIComponent(query)}`;
-
-            const response = await fetch(functionUrl);
-
-            if (response.status === 429) {
-                Notifications.showToast('⏳ Search rate limited - please wait a moment', 'warning', 3000);
-                return;
-            }
-
-            if (!response.ok) {
-                throw new Error(`API error: ${response.status}`);
-            }
-
-            const results = await response.json();
-            const resultsDiv = document.getElementById('searchResults');
+            const results = await this.nominatimSearch(query);
             resultsDiv.innerHTML = '';
 
-            if (!Array.isArray(results) || results.length === 0) {
-                resultsDiv.innerHTML = '<div style="padding: 8px; color: var(--text-tertiary); font-size: 0.85em; text-align: center;">No results found</div>';
+            if (!results.length) {
+                resultsDiv.innerHTML = '<div style="padding:12px;color:var(--text-tertiary);text-align:center;font-size:0.85em;">No results found</div>';
                 return;
             }
 
-            results.forEach(result => {
+            results.forEach(r => {
                 const item = document.createElement('div');
                 item.className = 'search-result-item';
-                item.innerHTML = `<strong>${result.name}</strong><small>${result.display_name}</small>`;
+                item.innerHTML = `<strong>${r.name || r.display_name.split(',')[0]}</strong><small>${r.display_name}</small>`;
                 item.addEventListener('click', () => {
-                    this.selectLocation(
-                        parseFloat(result.lat),
-                        parseFloat(result.lon),
-                        result.name
-                    );
+                    this.selectLocation(parseFloat(r.lat), parseFloat(r.lon), r.name || r.display_name.split(',')[0]);
                     resultsDiv.innerHTML = '';
-                    Notifications.showToast(`📍 Located: ${result.name}`, 'success', 2000);
+                    document.getElementById('searchInput').value = r.name || r.display_name.split(',')[0];
+                    Notifications.showToast(`📍 ${r.name || r.display_name.split(',')[0]}`, 'success', 2000);
                 });
                 resultsDiv.appendChild(item);
             });
-        } catch (error) {
-            console.error('Search error:', error);
-            Notifications.showModal(
-                'Search Failed',
-                'Could not search for locations. Please try again.',
-                'error'
-            );
+        } catch (err) {
+            console.error('Search error:', err);
+            resultsDiv.innerHTML = '<div style="padding:12px;color:var(--text-tertiary);text-align:center;font-size:0.85em;">Search failed — check connection</div>';
         }
+    }
+
+    async nominatimSearch(query) {
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`;
+        const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+        if (!res.ok) throw new Error(`Nominatim ${res.status}`);
+        return res.json();
     }
 
     selectLocation(lat, lon, name) {
         this.clearMarkers();
-        const marker = L.marker([lat, lon], {
-            icon: L.icon({
-                iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-                iconSize: [25, 41],
-                iconAnchor: [12, 41],
-                popupAnchor: [1, -34]
-            })
-        })
-        .addTo(this.map)
-        .bindPopup(name);
-
+        const marker = L.marker([lat, lon])
+            .addTo(this.map)
+            .bindPopup(`<strong>${name}</strong>`)
+            .openPopup();
         this.markers.push(marker);
         this.map.setView([lat, lon], 15);
     }
 
     // =====================
-    // ROUTE PLANNING (OSRM)
+    // ROUTE (direct OSRM)
     // =====================
+
     async findRoute() {
         const startInput = document.getElementById('startPoint').value.trim();
         const endInput = document.getElementById('endPoint').value.trim();
 
         if (!startInput || !endInput) {
-            Notifications.showModal(
-                'Missing Information',
-                'Please enter both starting point and destination to find a route.',
-                'warning'
-            );
+            Notifications.showModal('Missing Information', 'Please enter both a starting point and destination.', 'warning');
             return;
         }
 
+        const now = Date.now();
+        if (now - this.lastRouteTime < 2000) {
+            Notifications.showToast('⏳ Please wait a moment before searching again', 'warning', 2000);
+            return;
+        }
+        this.lastRouteTime = now;
+
+        this.setButtonLoading(true);
+
         try {
-            const findRouteBtn = document.getElementById('findRouteBtn');
-            findRouteBtn.classList.add('loading');
-            findRouteBtn.disabled = true;
-            
-            findRouteBtn.innerHTML = '<i class="fas fa-compass"></i> Finding Route';
+            // Geocode both points
+            const [startGeo, endGeo] = await Promise.all([
+                this.geocode(startInput),
+                this.geocode(endInput)
+            ]);
 
-            // Rate limiting: wait 2 seconds between route requests
-            const now = Date.now();
-            if (now - this.lastRouteTime < 2000) {
-                Notifications.showToast('⏳ Please wait before finding another route', 'warning', 2000);
-                this.resetButton();
-                return;
-            }
-            this.lastRouteTime = now;
-
-            // Geocode start point
-            const startGeo = await this.geocode(startInput);
             if (!startGeo) {
-                Notifications.showModal(
-                    'Location Not Found',
-                    `Could not find location: "${startInput}"\n\nTry a more specific address or different location name.`,
-                    'error'
-                );
-                this.resetButton();
+                Notifications.showModal('Not Found', `Could not locate: "${startInput}"`, 'error');
                 return;
             }
-
-            // Geocode end point
-            const endGeo = await this.geocode(endInput);
             if (!endGeo) {
-                Notifications.showModal(
-                    'Location Not Found',
-                    `Could not find location: "${endInput}"\n\nTry a more specific address or different location name.`,
-                    'error'
-                );
-                this.resetButton();
+                Notifications.showModal('Not Found', `Could not locate: "${endInput}"`, 'error');
                 return;
             }
 
@@ -348,200 +287,150 @@ class TransitPal {
             this.startName = startInput;
             this.endName = endInput;
 
-            // Get route from OSRM
             await this.getRoute();
-            
-        } catch (error) {
-            console.error('Route error:', error);
-            Notifications.showModal(
-                'Route Planning Failed',
-                'Could not calculate route. Please try different locations.',
-                'error'
-            );
+
+        } catch (err) {
+            console.error('Route error:', err);
+            Notifications.showModal('Route Failed', 'Could not calculate route. Try different locations.', 'error');
         } finally {
-            this.resetButton();
+            this.setButtonLoading(false);
         }
     }
 
     async geocode(location) {
         try {
-            const functionUrl = window.location.hostname === 'localhost' 
-                ? `http://localhost:8888/.netlify/functions/geocode?query=${encodeURIComponent(location)}`
-                : `/.netlify/functions/geocode?query=${encodeURIComponent(location)}`;
-
-            const response = await fetch(functionUrl);
-
-            if (response.status === 429) {
-                console.warn('Rate limited');
-                return null;
-            }
-
-            if (!response.ok) {
-                console.error('Geocode function error:', response.status);
-                return null;
-            }
-
-            const results = await response.json();
-            if (!results || results.length === 0) return null;
-
-            const result = results[0];
+            const results = await this.nominatimSearch(location);
+            if (!results.length) return null;
             return {
-                lat: parseFloat(result.lat),
-                lon: parseFloat(result.lon),
-                name: result.name
+                lat: parseFloat(results[0].lat),
+                lon: parseFloat(results[0].lon),
+                name: results[0].display_name.split(',')[0]
             };
-        } catch (error) {
-            console.error('Geocoding error:', error);
+        } catch (err) {
+            console.error('Geocode error:', err);
             return null;
         }
     }
 
     async getRoute() {
-        const modeMap = {
-            'car': 'car',
-            'foot': 'foot',
-            'bike': 'bike'
+        // OSRM profile mapping
+        const profileMap = { car: 'driving', foot: 'walking', bike: 'cycling' };
+        const profile = profileMap[this.currentMode] || 'driving';
+
+        const url = `https://router.project-osrm.org/route/v1/${profile}/` +
+            `${this.startCoords.lon},${this.startCoords.lat};` +
+            `${this.endCoords.lon},${this.endCoords.lat}` +
+            `?overview=full&geometries=geojson`;
+
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`OSRM error ${res.status}`);
+        const data = await res.json();
+
+        if (!data.routes?.length) throw new Error('No route found');
+
+        const route = data.routes[0];
+
+        this.currentRoute = {
+            start: this.startCoords,
+            end: this.endCoords,
+            startName: this.startName,
+            endName: this.endName,
+            mode: this.currentMode,
+            route,
+            timestamp: Date.now()
         };
 
-        const mode = modeMap[this.currentMode];
+        this.displayRoute(route);
+        this.showRouteInfo(route);
+        this.hideBottomSheet();
+        Notifications.showToast('🛣️ Route found!', 'success', 2000);
+    }
 
-        try {
-            const functionUrl = window.location.hostname === 'localhost' 
-                ? 'http://localhost:8888/.netlify/functions/route'
-                : '/.netlify/functions/route';
+    hideBottomSheet() {
+        const sheet = document.getElementById('routeSheet');
+        const triggerBtn = document.getElementById('sheetTriggerBtn');
+        if (sheet) {
+            sheet.classList.add('hidden');
+        }
+        if (triggerBtn) {
+            triggerBtn.classList.add('visible');
+        }
+    }
 
-            const response = await fetch(functionUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    startLon: this.startCoords.lon,
-                    startLat: this.startCoords.lat,
-                    endLon: this.endCoords.lon,
-                    endLat: this.endCoords.lat,
-                    mode: mode
-                })
-            });
-
-            if (response.status === 429) {
-                Notifications.showToast('⏳ Routing rate limited - please try again in a moment', 'warning', 3000);
-                return;
-            }
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Routing API error');
-            }
-
-            const data = await response.json();
-
-            if (!data.routes || data.routes.length === 0) {
-                throw new Error('No route found');
-            }
-
-            this.currentRoute = {
-                start: this.startCoords,
-                end: this.endCoords,
-                startName: this.startName,
-                endName: this.endName,
-                mode: this.currentMode,
-                route: data.routes[0],
-                timestamp: Date.now()
-            };
-
-            this.displayRoute(data.routes[0]);
-            this.showRouteInfo(data.routes[0]);
-            Notifications.showToast('🛣️ Route found successfully!', 'success', 2000);
-
-        } catch (error) {
-            console.error('Route error:', error);
-            Notifications.showModal(
-                'Routing Failed',
-                error.message || 'Could not calculate route. Please try different locations.',
-                'error'
-            );
+    showBottomSheet() {
+        const sheet = document.getElementById('routeSheet');
+        const triggerBtn = document.getElementById('sheetTriggerBtn');
+        if (sheet) {
+            sheet.classList.remove('hidden');
+        }
+        if (triggerBtn) {
+            triggerBtn.classList.remove('visible');
         }
     }
 
     displayRoute(route) {
         this.clearMarkers();
 
-        const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-        
-        if (this.routeLayer) {
-            this.map.removeLayer(this.routeLayer);
-        }
+        if (this.routeLayer) this.map.removeLayer(this.routeLayer);
 
-        this.routeLayer = L.polyline(coordinates, {
-            color: '#667eea',
-            weight: 4,
-            opacity: 0.8,
-            dashArray: '5, 5',
+        const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+
+        this.routeLayer = L.polyline(coords, {
+            color: '#007aff',
+            weight: 5,
+            opacity: 0.85,
             lineCap: 'round',
             lineJoin: 'round'
         }).addTo(this.map);
 
-        // Start marker
-        const startMarker = L.marker(
-            [this.startCoords.lat, this.startCoords.lon],
-            {
-                icon: L.icon({
-                    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-blue.png',
-                    iconSize: [25, 41],
-                    iconAnchor: [12, 41],
-                    popupAnchor: [1, -34]
-                })
-            }
-        ).addTo(this.map).bindPopup(`<strong>A</strong><br>${this.startName}`);
+        // Custom colored circle markers for A and B
+        const makeCircle = (latlng, color, label) =>
+            L.circleMarker(latlng, {
+                radius: 10,
+                fillColor: color,
+                color: '#fff',
+                weight: 2.5,
+                fillOpacity: 1
+            }).addTo(this.map).bindPopup(`<strong>${label}</strong>`);
 
-        // End marker
-        const endMarker = L.marker(
+        const startMarker = makeCircle(
+            [this.startCoords.lat, this.startCoords.lon],
+            '#34c759',
+            `A — ${this.startName}`
+        );
+        const endMarker = makeCircle(
             [this.endCoords.lat, this.endCoords.lon],
-            {
-                icon: L.icon({
-                    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-red.png',
-                    iconSize: [25, 41],
-                    iconAnchor: [12, 41],
-                    popupAnchor: [1, -34]
-                })
-            }
-        ).addTo(this.map).bindPopup(`<strong>B</strong><br>${this.endName}`);
+            '#ff3b30',
+            `B — ${this.endName}`
+        );
 
         this.markers.push(startMarker, endMarker);
 
-        const bounds = L.latLngBounds(
-            [this.startCoords.lat, this.startCoords.lon],
-            [this.endCoords.lat, this.endCoords.lon]
-        );
-        this.map.fitBounds(bounds, { padding: [100, 100] });
+        this.map.fitBounds(this.routeLayer.getBounds(), { padding: [80, 80] });
     }
 
     showRouteInfo(route) {
         const distance = (route.distance / 1000).toFixed(2);
-        const durationMinutes = Math.round(route.duration / 60);
+        const mins = Math.round(route.duration / 60);
 
         document.getElementById('distance').textContent = `${distance} km`;
-        document.getElementById('duration').textContent = `${durationMinutes} min`;
-        
-        const routeInfoDiv = document.getElementById('routeInfo');
-        routeInfoDiv.style.display = 'block';
+        document.getElementById('duration').textContent = `${mins} min`;
+
+        const card = document.getElementById('routeInfo');
+        if (card) card.classList.add('visible');
     }
 
     // =====================
-    // FAVORITES MANAGEMENT
+    // FAVORITES
     // =====================
+
     saveFavorite() {
         if (!this.currentRoute) {
-            Notifications.showModal(
-                'No Route Found',
-                'Please find a route first before saving.',
-                'warning'
-            );
+            Notifications.showModal('No Route', 'Find a route first before saving.', 'warning');
             return;
         }
 
-        const favorite = {
+        const fav = {
             id: this.currentRoute.timestamp,
             startName: this.currentRoute.startName,
             endName: this.currentRoute.endName,
@@ -552,24 +441,22 @@ class TransitPal {
             endCoords: this.currentRoute.end
         };
 
-        if (this.favorites.some(f => 
-            f.startName === favorite.startName && 
-            f.endName === favorite.endName &&
-            f.mode === favorite.mode
-        )) {
-            Notifications.showToast('⭐ This route is already saved', 'info', 2000);
+        if (this.favorites.some(f => f.startName === fav.startName && f.endName === fav.endName && f.mode === fav.mode)) {
+            Notifications.showToast('⭐ Already saved', 'info', 2000);
             return;
         }
 
-        this.favorites.push(favorite);
+        this.favorites.push(fav);
         this.saveFavoritesToStorage();
         this.displayFavorites();
-        Notifications.showToast('✅ Route saved successfully!', 'success', 2000);
+        Notifications.showToast('✅ Route saved!', 'success', 2000);
     }
 
     loadFavorites() {
-        const stored = localStorage.getItem('transitpalFavorites');
-        this.favorites = stored ? JSON.parse(stored) : [];
+        try {
+            const stored = localStorage.getItem('transitpalFavorites');
+            this.favorites = stored ? JSON.parse(stored) : [];
+        } catch { this.favorites = []; }
         this.displayFavorites();
     }
 
@@ -582,58 +469,63 @@ class TransitPal {
         const count = document.getElementById('favoritesCount');
         const noData = document.getElementById('noFavorites');
 
-        count.textContent = this.favorites.length;
+        if (count) count.textContent = this.favorites.length;
+        if (!list) return;
 
-        if (this.favorites.length === 0) {
+        if (!this.favorites.length) {
             list.innerHTML = '';
-            noData.style.display = 'flex';
+            if (noData) noData.style.display = 'flex';
             return;
         }
 
-        noData.style.display = 'none';
+        if (noData) noData.style.display = 'none';
         list.innerHTML = '';
 
-        this.favorites.forEach(fav => {
-            const modeEmoji = {
-                'car': '🚗',
-                'foot': '🚶',
-                'bike': '🚴'
-            };
+        const modeEmoji = { car: '🚗', foot: '🚶', bike: '🚴' };
 
+        this.favorites.forEach(fav => {
             const item = document.createElement('div');
             item.className = 'favorite-item';
+            item.style.cssText = `
+                display: flex; align-items: center; gap: 12px;
+                padding: 12px 16px; border-bottom: 1px solid var(--separator);
+                cursor: pointer;
+            `;
             item.innerHTML = `
-                <div class="favorite-info" style="flex: 1; cursor: pointer;">
-                    <div class="favorite-name">${fav.startName} → ${fav.endName}</div>
-                    <div class="favorite-mode">${modeEmoji[fav.mode]} ${fav.distance}km • ${fav.duration}min</div>
+                <div style="flex:1">
+                    <div style="font-weight:600;font-size:0.95rem;margin-bottom:4px;">
+                        ${fav.startName} → ${fav.endName}
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-secondary);">
+                        ${modeEmoji[fav.mode]} ${fav.distance} km • ${fav.duration} min
+                    </div>
                 </div>
-                <button class="favorite-delete">×</button>
+                <button class="fav-delete" style="
+                    width:28px;height:28px;border-radius:8px;border:none;
+                    background:rgba(255,59,48,0.15);color:#ff3b30;
+                    cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;
+                ">×</button>
             `;
 
-            item.querySelector('.favorite-info').addEventListener('click', () => {
-                document.getElementById('startPoint').value = fav.startName;
-                document.getElementById('endPoint').value = fav.endName;
-                
-                document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
-                document.querySelector(`[data-mode="${fav.mode}"]`).classList.add('active');
-                this.currentMode = fav.mode;
-                document.getElementById('routeMode').value = this.currentMode;
-
-                this.startCoords = fav.startCoords;
-                this.endCoords = fav.endCoords;
-                this.startName = fav.startName;
-                this.endName = fav.endName;
-
-                this.findRoute();
-                Notifications.showToast('📍 Loaded favorite route', 'info', 2000);
-            });
-
-            item.querySelector('.favorite-delete').addEventListener('click', (e) => {
+            item.querySelector('.fav-delete').addEventListener('click', e => {
                 e.stopPropagation();
                 this.favorites = this.favorites.filter(f => f.id !== fav.id);
                 this.saveFavoritesToStorage();
                 this.displayFavorites();
-                Notifications.showToast('🗑️ Route deleted', 'info', 1500);
+                Notifications.showToast('🗑️ Deleted', 'info', 1500);
+            });
+
+            item.addEventListener('click', () => {
+                document.getElementById('startPoint').value = fav.startName;
+                document.getElementById('endPoint').value = fav.endName;
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                document.querySelector(`[data-mode="${fav.mode}"]`)?.classList.add('active');
+                this.currentMode = fav.mode;
+                this.startCoords = fav.startCoords;
+                this.endCoords = fav.endCoords;
+                this.startName = fav.startName;
+                this.endName = fav.endName;
+                this.findRoute();
             });
 
             list.appendChild(item);
@@ -641,44 +533,30 @@ class TransitPal {
     }
 
     // =====================
-    // THEME MANAGEMENT
+    // THEME
     // =====================
+
     toggleTheme() {
-        const isDarkMode = !document.body.classList.contains('light-mode');
-        
-        if (isDarkMode) {
-            document.body.classList.add('light-mode');
-            localStorage.setItem('transitpal-theme', 'light');
-            this.updateThemeIcon('light');
-            Notifications.showToast('☀️ Light mode enabled', 'info', 1500);
-        } else {
-            document.body.classList.remove('light-mode');
-            localStorage.setItem('transitpal-theme', 'dark');
-            this.updateThemeIcon('dark');
-            Notifications.showToast('🌙 Dark mode enabled', 'info', 1500);
-        }
+        const isLight = document.body.classList.toggle('light-mode');
+        localStorage.setItem('transitpal-theme', isLight ? 'light' : 'dark');
+        this.updateThemeIcon(isLight ? 'light' : 'dark');
+        Notifications.showToast(isLight ? '☀️ Light mode' : '🌙 Dark mode', 'info', 1500);
     }
 
     updateThemeIcon(theme) {
-        const themeBtn = document.getElementById('themeToggle');
-        if (themeBtn) {
-            if (theme === 'light') {
-                themeBtn.innerHTML = '<i class="fas fa-sun"></i>';
-                themeBtn.title = 'Switch to Dark Mode';
-            } else {
-                themeBtn.innerHTML = '<i class="fas fa-moon"></i>';
-                themeBtn.title = 'Switch to Light Mode';
-            }
-        }
+        const btn = document.getElementById('themeToggle');
+        if (!btn) return;
+        btn.innerHTML = theme === 'light'
+            ? '<i class="fas fa-sun"></i>'
+            : '<i class="fas fa-moon"></i>';
     }
 
     loadThemePreference() {
-        const savedTheme = localStorage.getItem('transitpal-theme');
-        if (savedTheme === 'light') {
+        const saved = localStorage.getItem('transitpal-theme');
+        if (saved === 'light') {
             document.body.classList.add('light-mode');
             this.updateThemeIcon('light');
         } else {
-            document.body.classList.remove('light-mode');
             this.updateThemeIcon('dark');
         }
     }
@@ -686,65 +564,63 @@ class TransitPal {
     // =====================
     // UTILITIES
     // =====================
-    swapPoints() {
-        const start = document.getElementById('startPoint').value;
-        const end = document.getElementById('endPoint').value;
 
-        document.getElementById('startPoint').value = end;
-        document.getElementById('endPoint').value = start;
-        
-        Notifications.showToast('⇅ Start and destination swapped', 'info', 1500);
+    swapPoints() {
+        const s = document.getElementById('startPoint');
+        const e = document.getElementById('endPoint');
+        [s.value, e.value] = [e.value, s.value];
+        Notifications.showToast('⇅ Swapped', 'info', 1500);
     }
 
     clearMarkers() {
-        this.markers.forEach(marker => this.map.removeLayer(marker));
+        this.markers.forEach(m => this.map.removeLayer(m));
         this.markers = [];
     }
 
     getCurrentLocation() {
         if (!navigator.geolocation) {
-            Notifications.showModal(
-                'Geolocation Unavailable',
-                'Your browser does not support geolocation.',
-                'error'
-            );
+            Notifications.showModal('Unavailable', 'Geolocation is not supported by your browser.', 'error');
             return;
         }
 
         navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const { latitude, longitude } = position.coords;
+            ({ coords: { latitude, longitude } }) => {
                 this.map.setView([latitude, longitude], 15);
-                
-                L.marker([latitude, longitude], {
-                    icon: L.icon({
-                        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-                        iconSize: [25, 41]
-                    })
-                }).addTo(this.map).bindPopup('📍 You are here');
-                
-                Notifications.showToast('📍 Located your position', 'success', 2000);
+                L.circleMarker([latitude, longitude], {
+                    radius: 10, fillColor: '#007aff', color: '#fff',
+                    weight: 3, fillOpacity: 1
+                }).addTo(this.map).bindPopup('📍 You are here').openPopup();
+                Notifications.showToast('📍 Located!', 'success', 2000);
             },
-            (error) => {
-                console.error('Geolocation error:', error);
-                Notifications.showToast('❌ Could not get your location', 'error', 2000);
-            }
+            () => Notifications.showToast('❌ Could not get location', 'error', 2000)
         );
     }
 
-    resetButton() {
-        const findRouteBtn = document.getElementById('findRouteBtn');
-        findRouteBtn.classList.remove('loading');
-        findRouteBtn.disabled = false;
-        findRouteBtn.innerHTML = '<i class="fas fa-compass"></i> Find Route';
+    setButtonLoading(loading) {
+        const btn = document.getElementById('findRouteBtn');
+        if (!btn) return;
+        btn.disabled = loading;
+        btn.textContent = loading ? 'Finding Route…' : 'Find Route';
     }
 }
 
 // =====================
-// INITIALIZE ON PAGE LOAD
+// BOOT
 // =====================
 
 document.addEventListener('DOMContentLoaded', () => {
     new TransitPal();
-    console.log('TransitPal initialized with theme support');
+
+    // Collapsible cards
+    document.querySelectorAll('.collapsible-header').forEach(header => {
+        header.addEventListener('click', () => {
+            const card = header.closest('.collapsible-card');
+            const body = document.getElementById(header.dataset.target);
+            if (!card || !body) return;
+            card.classList.toggle('collapsed');
+            body.style.maxHeight = card.classList.contains('collapsed')
+                ? '0'
+                : body.scrollHeight + 'px';
+        });
+    });
 });
